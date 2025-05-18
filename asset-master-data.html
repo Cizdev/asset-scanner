@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Asset QR Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      background: #f5f7f6;
+      color: #212d2d;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .header {
+      width: 100%;
+      padding: 1.4rem 0 1.2rem 0;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.3rem;
+      color: #167D27;
+      background: #fff;
+      border-bottom: 2px solid #def2e1;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    #scanner-container {
+      width: 98vw;
+      max-width: 410px;
+      margin: 24px 0 10px 0;
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 4px 18px #e5f8e9b5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.3rem 0.5rem 2rem 0.5rem;
+    }
+    #qr-reader {
+      width: 100%;
+      min-height: 240px;
+      max-width: 340px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.2rem;
+      background: #f1fcf2;
+      box-shadow: 0 1px 8px #b5e7c8a4;
+    }
+    .btn {
+      background: linear-gradient(90deg,#4DCB51 0%,#219D3C 100%);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 0.65rem 2.1rem;
+      cursor: pointer;
+      box-shadow: 0 3px 15px #67ee93a7;
+      margin-bottom: 0.7rem;
+      transition: background 0.16s;
+    }
+    .btn:active {
+      background: #219D3C;
+    }
+    .result {
+      margin-top: 1.1rem;
+      font-size: 1.09rem;
+      background: #e8fbe7;
+      padding: 0.7rem 1.3rem;
+      border-radius: 6px;
+      min-width: 200px;
+      max-width: 95vw;
+      word-break: break-all;
+      text-align: center;
+      border: 1.5px solid #99ecae;
+      color: #167D27;
+      font-weight: 500;
+    }
+    .success { color: #1e9a46; border-color: #48d97a; background: #e1ffe9; }
+    .fail { color: #c52222; border-color: #ffa2a2; background: #ffeaea; }
+    @media (max-width: 500px) {
+      #scanner-container { padding: 1rem 0.15rem 1.2rem 0.15rem; }
+      #qr-reader { min-height: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    Asset QR Scanner
+  </div>
+  <div id="scanner-container">
+    <div id="qr-reader"></div>
+    <button class="btn" id="start-scan">Start Scan</button>
+    <button class="btn" id="stop-scan" style="display:none;">Stop Scan</button>
+    <div id="result" class="result" style="display:none"></div>
+  </div>
+
+  <script>
+    // === GANTI URL ENDPOINT FLOW LO DI SINI ===
+    const FLOW_URL = 'https://prod-40.southeastasia.logic.azure.com:443/workflows/d2a4da428d114ba2a4b8f48a1fe84a27/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=UHWUz6IU33Ts5veyY3K4GZCin582SYvfYW6-J9X4Kfc'; // Ganti ke URL Flow yang lo buat
+
+    const startBtn = document.getElementById('start-scan');
+    const stopBtn = document.getElementById('stop-scan');
+    const resultDiv = document.getElementById('result');
+    let qrScanner;
+
+    function resetResult() {
+      resultDiv.style.display = "none";
+      resultDiv.textContent = '';
+      resultDiv.className = 'result';
+    }
+
+    function sendToFlow(qrValue) {
+      fetch(FLOW_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ QRCode: qrValue })
+      })
+      .then(res => res.json())
+      .then(data => {
+        resultDiv.textContent = 'QR code sent!\n\n' + qrValue;
+        resultDiv.className = 'result success';
+        resultDiv.style.display = "block";
+      })
+      .catch(err => {
+        resultDiv.textContent = 'Failed to send QR code!';
+        resultDiv.className = 'result fail';
+        resultDiv.style.display = "block";
+      });
+    }
+
+    startBtn.addEventListener('click', () => {
+      resetResult();
+      startBtn.style.display = 'none';
+      stopBtn.style.display = 'inline-block';
+
+      qrScanner = new Html5Qrcode("qr-reader");
+      qrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        qrMessage => {
+          sendToFlow(qrMessage);
+          qrScanner.stop().then(() => {
+            stopBtn.style.display = 'none';
+            startBtn.style.display = 'inline-block';
+          });
+        },
+        errorMessage => {
+          // Optional: tampilkan pesan error jika perlu
+        }
+      );
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (qrScanner) {
+        qrScanner.stop().then(() => {
+          stopBtn.style.display = 'none';
+          startBtn.style.display = 'inline-block';
+          resetResult();
+        });
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (qrScanner) qrScanner.stop();
+    });
+  </script>
+</body>
+</html>
